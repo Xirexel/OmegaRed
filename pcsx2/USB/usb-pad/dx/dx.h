@@ -30,9 +30,9 @@
 #include <map>
 #include <sstream>
 
-#include "../usb-pad.h"
-#include "../../configuration.h"
-#include "../../usb-pad/lg/lg_ff.h"
+#include "USB/usb-pad/usb-pad.h"
+#include "USB/configuration.h"
+#include "USB/usb-pad/lg/lg_ff.h"
 
 #define DINPUT_AXES_COUNT 32
 
@@ -74,6 +74,17 @@ namespace usb_pad
 			CID_R3,
 			CID_SELECT,
 			CID_START,
+			CID_BUTTON20,
+			CID_BUTTON21,
+			CID_BUTTON22,
+			CID_BUTTON23,
+			CID_BUTTON24,
+			CID_BUTTON25,
+			CID_BUTTON26,
+			CID_BUTTON27,
+			CID_BUTTON28,
+			CID_BUTTON29,
+			CID_BUTTON30,
 			CID_COUNT,
 		};
 

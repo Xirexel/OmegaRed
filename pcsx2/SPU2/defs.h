@@ -451,8 +451,6 @@ struct V_Core
 	u16* DMARPtr; // Mem pointer for DMA Reads
 	u32 ReadSize;
 	bool IsDMARead;
-	u32 MADR;
-	u32 TADR;
 
 	u32 KeyOn; // not the KON register (though maybe it is)
 
@@ -461,7 +459,7 @@ struct V_Core
 	u16 psxSPUSTAT;
 
 	// HACK -- This is a temp buffer which is (or isn't?) used to circumvent some memory
-	// corruption that originates elsewhere in the plugin. >_<  The actual ADMA buffer
+	// corruption that originates elsewhere. >_<  The actual ADMA buffer
 	// is an area mapped to SPU2 main memory.
 	//s16				ADMATempBuffer[0x1000];
 

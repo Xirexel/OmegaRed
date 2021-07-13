@@ -15,8 +15,8 @@
 
 #include "PrecompiledHeader.h"
 
-#include "../ATA.h"
-#include "../../DEV9.h"
+#include "DEV9/ATA/ATA.h"
+#include "DEV9/DEV9.h"
 
 void ATA::DRQCmdDMADataToHost()
 {
@@ -62,7 +62,11 @@ void ATA::DRQCmdDMADataFromHost()
 }
 void ATA::PostCmdDMADataFromHost()
 {
-	QueueWrite(currentWriteSectors, currentWrite, currentWriteLength);
+	WriteQueueEntry entry{0};
+	entry.data = currentWrite;
+	entry.length = currentWriteLength;
+	entry.sector = currentWriteSectors;
+	writeQueue.Enqueue(entry);
 	currentWrite = nullptr;
 	currentWriteLength = 0;
 	currentWriteSectors = 0;
@@ -92,7 +96,7 @@ void ATA::ATAreadDMA8Mem(u8* pMem, int size)
 	{
 		if (size == 0)
 			return;
-		DevCon.WriteLn("DMA read, size %i, transferred %i, total size %i", size, rdTransferred, nsector * 512);
+		DevCon.WriteLn("DEV9: DMA read, size %i, transferred %i, total size %i", size, rdTransferred, nsector * 512);
 
 		//read
 		memcpy(pMem, &readBuffer[rdTransferred], size);
@@ -115,7 +119,7 @@ void ATA::ATAwriteDMA8Mem(u8* pMem, int size)
 	if ((udmaMode >= 0) &&
 		(dev9.if_ctrl & SPD_IF_ATA_DMAEN) != 0)
 	{
-		DevCon.WriteLn("DMA write, size %i, transferred %i, total size %i", size, wrTransferred, nsector * 512);
+		DevCon.WriteLn("DEV9: DMA write, size %i, transferred %i, total size %i", size, wrTransferred, nsector * 512);
 
 		//write
 		memcpy(&currentWrite[wrTransferred], pMem, size);
@@ -139,7 +143,7 @@ void ATA::HDD_ReadDMA(bool isLBA48)
 {
 	if (!PreCmd())
 		return;
-	DevCon.WriteLn("HDD_ReadDMA");
+	DevCon.WriteLn("DEV9: HDD_ReadDMA");
 
 	IDE_CmdLBA48Transform(isLBA48);
 
@@ -159,7 +163,7 @@ void ATA::HDD_WriteDMA(bool isLBA48)
 {
 	if (!PreCmd())
 		return;
-	DevCon.WriteLn("HDD_WriteDMA");
+	DevCon.WriteLn("DEV9: HDD_WriteDMA");
 
 	IDE_CmdLBA48Transform(isLBA48);
 

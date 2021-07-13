@@ -17,6 +17,7 @@
 
 #include <chrono>
 #include <thread>
+#include <mutex>
 #if defined(__POSIX__)
 #include <pthread.h>
 #endif
@@ -27,13 +28,14 @@
 #endif
 #include "pcap_io.h"
 
-#ifdef _WIN32
-#include "Win32\tap.h"
-#endif
-#include "pcap_io.h"
+#include "PacketReader/EthernetFrame.h"
+#include "PacketReader/IP/IP_Packet.h"
+#include "PacketReader/IP/UDP/UDP_Packet.h"
 
 NetAdapter* nif;
 std::thread rx_thread;
+
+std::mutex rx_mutex;
 
 volatile bool RxRunning = false;
 //rx thread
@@ -44,9 +46,16 @@ void NetRxThread()
 	{
 		while (rx_fifo_can_rx() && nif->recv(&tmp))
 		{
-			rx_process(&tmp);
+			std::lock_guard rx_lock(rx_mutex);
+			//Check if we can still rx
+			if (rx_fifo_can_rx())
+				rx_process(&tmp);
+			else
+				Console.Error("DEV9: rx_fifo_can_rx() false after nif->recv(), dropping");
 		}
-		std::this_thread::yield();
+
+		using namespace std::chrono_literals;
+		std::this_thread::sleep_for(1ms);
 	}
 }
 
@@ -90,7 +99,7 @@ void InitNet()
 
 	if (!na)
 	{
-		Console.Error("Failed to GetNetAdapter()");
+		Console.Error("DEV9: Failed to GetNetAdapter()");
 		config.ethEnable = false;
 		return;
 	}
@@ -113,15 +122,40 @@ void InitNet()
 #endif
 }
 
+void ReconfigureLiveNet(Config* oldConfig)
+{
+	//Eth
+	if (config.ethEnable)
+	{
+		if (oldConfig->ethEnable)
+		{
+			//Reload Net if adapter changed
+			if (strcmp(oldConfig->Eth, config.Eth) != 0 ||
+				oldConfig->EthApi != config.EthApi)
+			{
+				TermNet();
+				InitNet();
+				return;
+			}
+			else
+				nif->reloadSettings();
+		}
+		else
+			InitNet();
+	}
+	else if (oldConfig->ethEnable)
+		TermNet();
+}
+
 void TermNet()
 {
 	if (RxRunning)
 	{
 		RxRunning = false;
 		nif->close();
-		Console.WriteLn("Waiting for RX-net thread to terminate..");
+		Console.WriteLn("DEV9: Waiting for RX-net thread to terminate..");
 		rx_thread.join();
-		Console.WriteLn("Done");
+		Console.WriteLn("DEV9: Done");
 
 		delete nif;
 		nif = nullptr;
@@ -158,11 +192,48 @@ const wchar_t* NetApiToWstring(NetApi api)
 	}
 }
 
+using namespace PacketReader;
+using namespace PacketReader::IP;
+using namespace PacketReader::IP::UDP;
+
+const IP_Address NetAdapter::internalIP{192, 0, 2, 1};
+const u8 NetAdapter::broadcastMAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+const u8 NetAdapter::internalMAC[6] = {0x76, 0x6D, 0xF4, 0x63, 0x30, 0x31};
 
 NetAdapter::NetAdapter()
 {
 	//Ensure eeprom matches our default
 	SetMACAddress(nullptr);
+}
+
+bool NetAdapter::recv(NetPacket* pkt)
+{
+	if (!internalRxThreadRunning.load())
+		return InternalServerRecv(pkt);
+	return false;
+}
+
+bool NetAdapter::send(NetPacket* pkt)
+{
+	return InternalServerSend(pkt);
+}
+
+//RxRunning must be set false before this
+NetAdapter::~NetAdapter()
+{
+	//unblock InternalServerRX thread
+	if (internalRxThreadRunning.load())
+	{
+		internalRxThreadRunning.store(false);
+
+		{
+			std::lock_guard srvlock(internalRxMutex);
+			internalRxHasData = true;
+		}
+
+		internalRxCV.notify_all();
+		internalRxThread.join();
+	}
 }
 
 void NetAdapter::SetMACAddress(u8* mac)
@@ -194,4 +265,115 @@ bool NetAdapter::VerifyPkt(NetPacket* pkt, int read_size)
 	}
 	pkt->size = read_size;
 	return true;
+}
+
+#ifdef _WIN32
+void NetAdapter::InitInternalServer(PIP_ADAPTER_ADDRESSES adapter)
+#elif defined(__POSIX__)
+void NetAdapter::InitInternalServer(ifaddrs* adapter)
+#endif
+{
+	if (adapter == nullptr)
+		Console.Error("DEV9: InitInternalServer() got nullptr for adapter");
+
+	if (config.InterceptDHCP)
+		dhcpServer.Init(adapter);
+
+	if (blocks())
+	{
+		internalRxThreadRunning.store(true);
+		internalRxThread = std::thread(&NetAdapter::InternalServerThread, this);
+	}
+}
+
+#ifdef _WIN32
+void NetAdapter::ReloadInternalServer(PIP_ADAPTER_ADDRESSES adapter)
+#elif defined(__POSIX__)
+void NetAdapter::ReloadInternalServer(ifaddrs* adapter)
+#endif
+{
+	if (adapter == nullptr)
+		Console.Error("DEV9: ReloadInternalServer() got nullptr for adapter");
+
+	if (config.InterceptDHCP)
+		dhcpServer.Init(adapter);
+}
+
+bool NetAdapter::InternalServerRecv(NetPacket* pkt)
+{
+	IP_Payload* updpkt = dhcpServer.Recv();
+	if (updpkt != nullptr)
+	{
+		IP_Packet* ippkt = new IP_Packet(updpkt);
+		ippkt->destinationIP = {255, 255, 255, 255};
+		ippkt->sourceIP = internalIP;
+		EthernetFrame frame(ippkt);
+		memcpy(frame.sourceMAC, internalMAC, 6);
+		memcpy(frame.destinationMAC, ps2MAC, 6);
+		frame.protocol = (u16)EtherType::IPv4;
+		frame.WritePacket(pkt);
+		return true;
+	}
+	return false;
+}
+
+bool NetAdapter::InternalServerSend(NetPacket* pkt)
+{
+	EthernetFrame frame(pkt);
+	if (frame.protocol == (u16)EtherType::IPv4)
+	{
+		PayloadPtr* payload = static_cast<PayloadPtr*>(frame.GetPayload());
+		IP_Packet ippkt(payload->data, payload->GetLength());
+
+		if (ippkt.protocol == (u16)IP_Type::UDP)
+		{
+			IP_PayloadPtr* ipPayload = static_cast<IP_PayloadPtr*>(ippkt.GetPayload());
+			UDP_Packet udppkt(ipPayload->data, ipPayload->GetLength());
+
+			if (udppkt.destinationPort == 67)
+			{
+				//Send DHCP
+				if (config.InterceptDHCP)
+					return dhcpServer.Send(&udppkt);
+			}
+		}
+
+		if (ippkt.destinationIP == internalIP)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void NetAdapter::InternalSignalReceived()
+{
+	//Signal internal server thread to read
+	if (internalRxThreadRunning.load())
+	{
+		{
+			std::lock_guard srvlock(internalRxMutex);
+			internalRxHasData = true;
+		}
+
+		internalRxCV.notify_all();
+	}
+}
+
+void NetAdapter::InternalServerThread()
+{
+	NetPacket tmp;
+	while (internalRxThreadRunning.load())
+	{
+		std::unique_lock srvLock(internalRxMutex);
+		internalRxCV.wait(srvLock, [&] { return internalRxHasData; });
+
+		{
+			std::lock_guard rx_lock(rx_mutex);
+			while (rx_fifo_can_rx() && InternalServerRecv(&tmp))
+				rx_process(&tmp);
+		}
+
+		internalRxHasData = false;
+	}
 }

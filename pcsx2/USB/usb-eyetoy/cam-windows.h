@@ -72,11 +72,11 @@ namespace usb_eyetoy
 
 		typedef void (*DShowVideoCaptureCallback)(unsigned char* data, int len, int bitsperpixel);
 
-		typedef struct
+		struct buffer_t
 		{
 			void* start = NULL;
 			size_t length = 0;
-		} buffer_t;
+		};
 
 		static const char* APINAME = "DirectShow";
 
@@ -84,10 +84,10 @@ namespace usb_eyetoy
 		{
 		public:
 			DirectShow(int port);
-			~DirectShow() {}
-			int Open();
+			~DirectShow();
+			int Open(int width, int height, FrameFormat format, int mirror);
 			int Close();
-			int GetImage(uint8_t* buf, int len);
+			int GetImage(uint8_t* buf, size_t len);
 			void SetMirroring(bool state);
 			int Reset() { return 0; };
 

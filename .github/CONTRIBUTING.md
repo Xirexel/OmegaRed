@@ -1,9 +1,9 @@
 # So you want to contribute to PCSX2? Great
 
-As a first step, please review these links as they'll help you understand how the development of the PCSX2 works. These pages are all found on the github [wiki](https://github.com/PCSX2/pcsx2/wiki). You should probably also check out the [forums](http://forums.pcsx2.net/index.php).
+As a first step, please review these links as they'll help you understand how the development of PCSX2 works.
 
 *   [Just Starting Out](#just-starting-out)
-*   [Issue Reportding](#issue-reportding)
+*   [Issue Reporting](#issue-reporting)
 *   [Pull Request Guidelines](#pull-request-guidelines)
 *   [General Documentation And Coding Strategies](#general-documentation-and-coding-strategies)
 *   [Tasks](#tasks)
@@ -14,7 +14,7 @@ As a first step, please review these links as they'll help you understand how th
 *   [How to build PCSX2 for Windows](https://github.com/PCSX2/pcsx2/wiki/Setting-up-the-PCSX2-repository-on-Windows-\(WIP---maybe-more-useful-as-a-manpage-instead%3F\))
 *   [How to build PCSX2 for Linux](https://github.com/PCSX2/pcsx2/wiki/Installing-on-Linux)
 
-## Issue Reportding
+## Issue Reporting
 
 *   [How to write a useful issue](https://github.com/PCSX2/pcsx2/wiki/How-to-create-useful-and-valid-issues)
 
@@ -24,7 +24,7 @@ The following is a list of *general* style recommendations that will make review
 
 *   Commit Messages
     *   Please try to prefix your commit message, indicating what area of the project was modified.
-        *   For example `gsdx: message...`.
+        *   For example `gs: message...`.
         *   Looking at the project's commit history will help with keeping prefixes consistent overtime, *there is no strictly enforced list*.
     *   Try to keep messages brief and informative
     *   Remove unnecessary commits and squash commits together when appropriate.
@@ -49,4 +49,4 @@ The following is a list of *general* style recommendations that will make review
 
 *   [Todo List](https://github.com/PCSX2/pcsx2/wiki/Contributing-\(TODO-List\))
 *   [Issues](https://github.com/PCSX2/pcsx2/issues)
-*   [A collection of ideas to improve GSdx OGL](https://github.com/PCSX2/pcsx2/wiki/Todo-List)
+*   [A collection of ideas to improve GS OGL](https://github.com/PCSX2/pcsx2/wiki/Todo-List)

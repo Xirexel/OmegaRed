@@ -15,7 +15,7 @@
 
 #include "PrecompiledHeader.h"
 
-#include "../pcap_io.h"
+#include "DEV9/pcap_io.h"
 
 HMODULE hpcap = nullptr;
 
@@ -115,7 +115,7 @@ bool load_pcap()
 	if (fp_##name == nullptr)                                \
 	{                                                        \
 		FreeLibrary(hpcap);                                  \
-		Console.Error("%s not found", #name);                \
+		Console.Error("DEV9: %s not found", #name);          \
 		hpcap = nullptr;                                     \
 		return false;                                        \
 	}

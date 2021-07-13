@@ -14,8 +14,8 @@
  */
 
 #include "PrecompiledHeader.h"
-#include "../../USB.h"
-#include "../../Win32/Config_usb.h"
+#include "USB/USB.h"
+#include "USB/Win32/Config_usb.h"
 #include "usb-pad-raw.h"
 
 namespace usb_pad
@@ -443,7 +443,10 @@ namespace usb_pad
 				mOLWrite.hEvent = CreateEvent(0, 0, 0, 0);
 
 				HidD_GetAttributes(mUsbHandle, &(attr));
-				if (attr.VendorID != PAD_VID || attr.ProductID == 0xC262)
+
+				bool isClassicLogitech = (attr.VendorID == PAD_VID) && (attr.ProductID != 0xC262);
+				bool isKeyboardmania = (attr.VendorID == 0x0507) && (attr.ProductID == 0x0010);
+				if (!isClassicLogitech && !isKeyboardmania)
 				{
 					Console.Warning("USB: Vendor is not Logitech or wheel is G920. Not sending force feedback commands for safety reasons.\n");
 					mDoPassthrough = 0;

@@ -16,20 +16,24 @@
 #include "PrecompiledHeader.h"
 #include <stdio.h>
 #include <commdlg.h>
+#include <commctrl.h>
 
 #include <string>
 #include "ghc/filesystem.h"
 #include "fmt/format.h"
 
-#include "..\Config.h"
+#include "DEV9/Config.h"
 #include "resource.h"
-#include "..\DEV9.h"
-#include "..\pcap_io.h"
-#include "..\net.h"
+#include "DEV9/DEV9.h"
+#include "DEV9/pcap_io.h"
+#include "DEV9/net.h"
+#include "DEV9/PacketReader\IP\IP_Address.h"
 #include "tap.h"
 #include "AppCoreThread.h"
 
-#include "../ATA/HddCreate.h"
+#include "DEV9/ATA/HddCreate.h"
+
+using PacketReader::IP::IP_Address;
 
 extern HINSTANCE hInst;
 //HANDLE handleDEV9Thread = NULL;
@@ -45,6 +49,101 @@ void SysMessage(char* fmt, ...)
 	vsprintf(tmp, fmt, list);
 	va_end(list);
 	MessageBoxA(0, tmp, "Dev9 Msg", 0);
+}
+
+void IPControl_SetValue(HWND hwndCtl, IP_Address value)
+{
+	int tmp = MAKEIPADDRESS(value.bytes[0], value.bytes[1], value.bytes[2], value.bytes[3]);
+	SendMessage(hwndCtl, IPM_SETADDRESS, (WPARAM)0, (LPARAM)tmp);
+}
+IP_Address IPControl_GetValue(HWND hwndCtl)
+{
+	int tmp;
+	SendMessage(hwndCtl, IPM_GETADDRESS, (WPARAM)0, (LPARAM)&tmp);
+	IP_Address ret;
+	ret.bytes[0] = FIRST_IPADDRESS(tmp);
+	ret.bytes[1] = SECOND_IPADDRESS(tmp);
+	ret.bytes[2] = THIRD_IPADDRESS(tmp);
+	ret.bytes[3] = FOURTH_IPADDRESS(tmp);
+	return ret;
+}
+
+void IPControl_Enable(HWND hwndCtl, bool enabled, IP_Address value)
+{
+	if (enabled)
+	{
+		EnableWindow(hwndCtl, true);
+		IPControl_SetValue(hwndCtl, value);
+	}
+	else
+	{
+		EnableWindow(hwndCtl, false);
+		IPControl_SetValue(hwndCtl, {0});
+	}
+}
+
+void AutoMaskChanged(HWND hW)
+{
+	IPControl_Enable(GetDlgItem(hW, IDC_IPADDRESS_SUBNET), !Button_GetCheck(GetDlgItem(hW, IDC_CHECK_SUBNET)), config.Mask);
+}
+
+void AutoGatewayChanged(HWND hW)
+{
+	IPControl_Enable(GetDlgItem(hW, IDC_IPADDRESS_GATEWAY), !Button_GetCheck(GetDlgItem(hW, IDC_CHECK_GATEWAY)), config.Gateway);
+}
+
+void AutoDNS1Changed(HWND hW)
+{
+	IPControl_Enable(GetDlgItem(hW, IDC_IPADDRESS_DNS1), !Button_GetCheck(GetDlgItem(hW, IDC_CHECK_DNS1)), config.DNS1);
+}
+
+void AutoDNS2Changed(HWND hW)
+{
+	IPControl_Enable(GetDlgItem(hW, IDC_IPADDRESS_DNS2), !Button_GetCheck(GetDlgItem(hW, IDC_CHECK_DNS2)), config.DNS2);
+}
+
+void InterceptChanged(HWND hW)
+{
+	if (Button_GetCheck(GetDlgItem(hW, IDC_CHECK_DHCP)))
+	{
+		EnableWindow(GetDlgItem(hW, IDC_IPADDRESS_IP), true);
+		IPControl_SetValue(GetDlgItem(hW, IDC_IPADDRESS_IP), config.PS2IP);
+
+		Button_Enable(GetDlgItem(hW, IDC_CHECK_SUBNET), true);
+		Button_Enable(GetDlgItem(hW, IDC_CHECK_GATEWAY), true);
+		Button_Enable(GetDlgItem(hW, IDC_CHECK_DNS1), true);
+		Button_Enable(GetDlgItem(hW, IDC_CHECK_DNS2), true);
+
+		Button_SetCheck(GetDlgItem(hW, IDC_CHECK_SUBNET), config.AutoMask);
+		Button_SetCheck(GetDlgItem(hW, IDC_CHECK_GATEWAY), config.AutoGateway);
+		Button_SetCheck(GetDlgItem(hW, IDC_CHECK_DNS1), config.AutoDNS1);
+		Button_SetCheck(GetDlgItem(hW, IDC_CHECK_DNS2), config.AutoDNS2);
+
+		AutoMaskChanged(hW);
+		AutoGatewayChanged(hW);
+		AutoDNS1Changed(hW);
+		AutoDNS2Changed(hW);
+	}
+	else
+	{
+		EnableWindow(GetDlgItem(hW, IDC_IPADDRESS_IP), false);
+		IPControl_SetValue(GetDlgItem(hW, IDC_IPADDRESS_IP), {0});
+
+		Button_Enable(GetDlgItem(hW, IDC_CHECK_SUBNET), false);
+		Button_Enable(GetDlgItem(hW, IDC_CHECK_GATEWAY), false);
+		Button_Enable(GetDlgItem(hW, IDC_CHECK_DNS1), false);
+		Button_Enable(GetDlgItem(hW, IDC_CHECK_DNS2), false);
+
+		Button_SetCheck(GetDlgItem(hW, IDC_CHECK_SUBNET), true);
+		Button_SetCheck(GetDlgItem(hW, IDC_CHECK_GATEWAY), true);
+		Button_SetCheck(GetDlgItem(hW, IDC_CHECK_DNS1), true);
+		Button_SetCheck(GetDlgItem(hW, IDC_CHECK_DNS2), true);
+
+		IPControl_Enable(GetDlgItem(hW, IDC_IPADDRESS_SUBNET), false, config.Mask);
+		IPControl_Enable(GetDlgItem(hW, IDC_IPADDRESS_GATEWAY), false, config.Gateway);
+		IPControl_Enable(GetDlgItem(hW, IDC_IPADDRESS_DNS1), false, config.DNS1);
+		IPControl_Enable(GetDlgItem(hW, IDC_IPADDRESS_DNS2), false, config.DNS2);
+	}
 }
 
 void OnInitDialog(HWND hW)
@@ -75,6 +174,9 @@ void OnInitDialog(HWND hW)
 			ComboBox_SetCurSel(GetDlgItem(hW, IDC_ETHDEV), itm);
 	}
 
+	Button_SetCheck(GetDlgItem(hW, IDC_CHECK_DHCP), config.InterceptDHCP);
+	InterceptChanged(hW);
+
 	SetWindowText(GetDlgItem(hW, IDC_HDDFILE), config.Hdd);
 
 	//HDDText
@@ -82,30 +184,30 @@ void OnInitDialog(HWND hW)
 	Edit_LimitText(GetDlgItem(hW, IDC_HDDSIZE_TEXT), 3); //Excluding null char
 	//HDDSpin
 	SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SPIN), UDM_SETRANGE,
-				(WPARAM)0,
-				(LPARAM)MAKELPARAM(HDD_MAX_GB, HDD_MIN_GB));
+		(WPARAM)0,
+		(LPARAM)MAKELPARAM(HDD_MAX_GB, HDD_MIN_GB));
 	SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SPIN), UDM_SETPOS,
-				(WPARAM)0,
-				(LPARAM)(config.HddSize / 1024));
+		(WPARAM)0,
+		(LPARAM)(config.HddSize / 1024));
 
 	//HDDSlider
 	SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SLIDER), TBM_SETRANGE,
-				(WPARAM)FALSE,
-				(LPARAM)MAKELPARAM(HDD_MIN_GB, HDD_MAX_GB));
+		(WPARAM)FALSE,
+		(LPARAM)MAKELPARAM(HDD_MIN_GB, HDD_MAX_GB));
 	SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SLIDER), TBM_SETPAGESIZE,
-				(WPARAM)0,
-				(LPARAM)10);
+		(WPARAM)0,
+		(LPARAM)10);
 
-	for (int i = 15; i < HDD_MAX_GB; i += 5)
+	for (int i = HDD_MIN_GB; i < HDD_MAX_GB; i += 5)
 	{
 		SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SLIDER), TBM_SETTIC,
-					(WPARAM)0,
-					(LPARAM)i);
+			(WPARAM)0,
+			(LPARAM)i);
 	}
 
 	SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SLIDER), TBM_SETPOS,
-				(WPARAM)TRUE,
-				(LPARAM)(config.HddSize / 1024));
+		(WPARAM)TRUE,
+		(LPARAM)(config.HddSize / 1024));
 
 	//Checkboxes
 	Button_SetCheck(GetDlgItem(hW, IDC_ETHENABLED), config.ethEnable);
@@ -117,8 +219,7 @@ void OnBrowse(HWND hW)
 	wchar_t wbuff[4096] = {0};
 	memcpy(wbuff, HDD_DEF, sizeof(HDD_DEF));
 
-	//GHC uses UTF8 on all platforms
-	ghc::filesystem::path inis = GetSettingsFolder().ToUTF8().data();
+	ghc::filesystem::path inis(GetSettingsFolder().ToString().wx_str());
 	wstring w_inis = inis.wstring();
 
 	OPENFILENAMEW ofn;
@@ -145,11 +246,11 @@ void OnBrowse(HWND hW)
 			int filesizeGb = ghc::filesystem::file_size(hddFile) / (1024 * 1024 * 1024);
 			//Set slider
 			SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SPIN), UDM_SETPOS,
-						(WPARAM)0,
-						(LPARAM)filesizeGb);
+				(WPARAM)0,
+				(LPARAM)filesizeGb);
 			SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SLIDER), TBM_SETPOS,
-						(WPARAM)TRUE,
-						(LPARAM)filesizeGb);
+				(WPARAM)TRUE,
+				(LPARAM)filesizeGb);
 		}
 
 		if (hddFile.parent_path() == inis)
@@ -186,6 +287,28 @@ void OnOk(HWND hW)
 		char guid_char[256];
 		wcstombs(guid_char, adapters[i].guid.c_str(), wcslen(adapters[i].guid.c_str()) + 1);
 		strcpy(config.Eth, guid_char);
+	}
+
+	config.InterceptDHCP = Button_GetCheck(GetDlgItem(hW, IDC_CHECK_DHCP));
+	if (config.InterceptDHCP)
+	{
+		config.PS2IP = IPControl_GetValue(GetDlgItem(hW, IDC_IPADDRESS_IP));
+
+		config.AutoMask = Button_GetCheck(GetDlgItem(hW, IDC_CHECK_SUBNET));
+		if (!config.AutoMask)
+			config.Mask = IPControl_GetValue(GetDlgItem(hW, IDC_IPADDRESS_SUBNET));
+
+		config.AutoGateway = Button_GetCheck(GetDlgItem(hW, IDC_CHECK_GATEWAY));
+		if (!config.AutoGateway)
+			config.Gateway = IPControl_GetValue(GetDlgItem(hW, IDC_IPADDRESS_GATEWAY));
+
+		config.AutoDNS1 = Button_GetCheck(GetDlgItem(hW, IDC_CHECK_DNS1));
+		if (!config.AutoDNS1)
+			config.DNS1 = IPControl_GetValue(GetDlgItem(hW, IDC_IPADDRESS_DNS1));
+
+		config.AutoDNS2 = Button_GetCheck(GetDlgItem(hW, IDC_CHECK_DNS2));
+		if (!config.AutoDNS2)
+			config.DNS2 = IPControl_GetValue(GetDlgItem(hW, IDC_IPADDRESS_DNS2));
 	}
 
 	GetWindowText(GetDlgItem(hW, IDC_HDDFILE), config.Hdd, 256);
@@ -259,6 +382,21 @@ BOOL CALLBACK ConfigureDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 					OnOk(hW);
 					return TRUE;
+				case IDC_CHECK_DHCP:
+					InterceptChanged(hW);
+					return TRUE;
+				case IDC_CHECK_SUBNET:
+					AutoMaskChanged(hW);
+					return TRUE;
+				case IDC_CHECK_GATEWAY:
+					AutoGatewayChanged(hW);
+					return TRUE;
+				case IDC_CHECK_DNS1:
+					AutoDNS1Changed(hW);
+					return TRUE;
+				case IDC_CHECK_DNS2:
+					AutoDNS2Changed(hW);
+					return TRUE;
 				case IDC_BROWSE:
 					OnBrowse(hW);
 					return TRUE;
@@ -284,11 +422,11 @@ BOOL CALLBACK ConfigureDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lParam)
 								return TRUE;
 
 							SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SPIN), UDM_SETPOS,
-										(WPARAM)0,
-										(LPARAM)curpos);
+								(WPARAM)0,
+								(LPARAM)curpos);
 							SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SLIDER), TBM_SETPOS,
-										(WPARAM)TRUE,
-										(LPARAM)curpos);
+								(WPARAM)TRUE,
+								(LPARAM)curpos);
 							return TRUE;
 						}
 					}
@@ -317,8 +455,8 @@ BOOL CALLBACK ConfigureDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				case TB_THUMBTRACK:
 					//Update Textbox
 					SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SPIN), UDM_SETPOS,
-								(WPARAM)0,
-								(LPARAM)curpos);
+						(WPARAM)0,
+						(LPARAM)curpos);
 					return TRUE;
 
 				default:
@@ -346,8 +484,8 @@ BOOL CALLBACK ConfigureDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					//Update Textbox
 					//Edit_SetText(GetDlgItem(hW, IDC_HDDSIZE_TEXT), to_wstring(curpos).c_str());
 					SendMessage(GetDlgItem(hW, IDC_HDDSIZE_SLIDER), TBM_SETPOS,
-								(WPARAM)TRUE,
-								(LPARAM)curpos);
+						(WPARAM)TRUE,
+						(LPARAM)curpos);
 					return TRUE;
 
 				default:
@@ -364,9 +502,9 @@ void DEV9configure()
 	Config oldConfig = config;
 
 	DialogBox(hInst,
-			  MAKEINTRESOURCE(IDD_CONFIG),
-			  GetActiveWindow(),
-			  (DLGPROC)ConfigureDlgProc);
+		MAKEINTRESOURCE(IDD_CONFIG),
+		GetActiveWindow(),
+		(DLGPROC)ConfigureDlgProc);
 	//SysMessage("Nothing to Configure");
 
 	ApplyConfigIfRunning(oldConfig);

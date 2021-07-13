@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2020  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -31,7 +31,8 @@ InputRecordingControls g_InputRecordingControls;
 
 void InputRecordingControls::CheckPauseStatus()
 {
-	if (frameAdvancing)
+	frame_advance_frame_counter++;
+	if (frameAdvancing && frame_advance_frame_counter >= frames_per_frame_advance)
 	{
 		frameAdvancing = false;
 		pauseEmulation = true;
@@ -99,7 +100,13 @@ void InputRecordingControls::FrameAdvance()
 		return;
 	}
 	frameAdvancing = true;
+	frame_advance_frame_counter = 0;
 	Resume();
+}
+
+void InputRecordingControls::setFrameAdvanceAmount(int amount)
+{
+	frames_per_frame_advance = amount;
 }
 
 bool InputRecordingControls::IsFrameAdvancing()
@@ -140,6 +147,18 @@ void InputRecordingControls::Resume()
 	}
 	pauseEmulation = false;
 	resumeEmulation = true;
+}
+
+void InputRecordingControls::ResumeImmediately()
+{
+	if (!CoreThread.IsPaused())
+		return;
+	Resume();
+	if (CoreThread.IsPaused() && CoreThread.IsRunning())
+	{
+		emulationCurrentlyPaused = false;
+		CoreThread.Resume();
+	}
 }
 
 void InputRecordingControls::TogglePause()

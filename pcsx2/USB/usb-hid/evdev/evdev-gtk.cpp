@@ -13,14 +13,12 @@
  *  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "../usb-hid.h"
+#include "USB/usb-hid/usb-hid.h"
 #include "evdev.h"
 #include <linux/input.h>
-#include "../../gtk.h"
+#include "USB/gtk.h"
 #include <cstdio>
 #include <sstream>
-
-GtkWidget* new_combobox(const char* label, GtkWidget* vbox); // src/linux/config-gtk.cpp
 
 namespace usb_hid
 {

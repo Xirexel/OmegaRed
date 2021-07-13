@@ -16,6 +16,7 @@
 #include "PrecompiledHeader.h"
 
 #include <stdio.h>
+#include <arpa/inet.h>
 
 #include <gtk/gtk.h>
 
@@ -29,17 +30,113 @@
 #include <string>
 #include "ghc/filesystem.h"
 
-#include "../Config.h"
-#include "../DEV9.h"
+#include "DEV9/Config.h"
+#include "DEV9/DEV9.h"
 #include "pcap.h"
-#include "../pcap_io.h"
-#include "../net.h"
+#include "DEV9/pcap_io.h"
+#include "DEV9/net.h"
+#include "DEV9/PacketReader/IP/IP_Address.h"
 #include "AppCoreThread.h"
 
-#include "../ATA/HddCreate.h"
+#include "DEV9/ATA/HddCreate.h"
+
+using PacketReader::IP::IP_Address;
 
 static GtkBuilder* builder = nullptr;
 std::vector<AdapterEntry> adapters;
+
+void IPControl_SetValue(GtkEntry* entryCtl, IP_Address value)
+{
+	char addrBuff[INET_ADDRSTRLEN] = {0};
+	inet_ntop(AF_INET, &value, addrBuff, INET_ADDRSTRLEN);
+	gtk_entry_set_text(entryCtl, addrBuff);
+}
+IP_Address IPControl_GetValue(GtkEntry* entryCtl)
+{
+	IP_Address ret;
+	if (inet_pton(AF_INET, gtk_entry_get_text(entryCtl), &ret) == 1)
+		return ret;
+	Console.Error("Invalid IP address entered");
+	return {0};
+}
+
+void IPControl_Enable(GtkEntry* ipEntry, bool enabled, IP_Address value)
+{
+	if (enabled)
+	{
+		gtk_widget_set_sensitive((GtkWidget*)ipEntry, true);
+		IPControl_SetValue(ipEntry, value);
+	}
+	else
+	{
+		gtk_widget_set_sensitive((GtkWidget*)ipEntry, false);
+		IPControl_SetValue(ipEntry, {0});
+	}
+}
+
+void OnAutoMaskChanged(GtkToggleButton* togglebutton, gpointer usr_data)
+{
+	IPControl_Enable((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_SUBNET"), !gtk_toggle_button_get_active(togglebutton), config.Mask);
+}
+
+void OnAutoGatewayChanged(GtkToggleButton* togglebutton, gpointer usr_data)
+{
+	IPControl_Enable((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_GATEWAY"), !gtk_toggle_button_get_active(togglebutton), config.Gateway);
+}
+
+void OnAutoDNS1Changed(GtkToggleButton* togglebutton, gpointer usr_data)
+{
+	IPControl_Enable((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_DNS1"), !gtk_toggle_button_get_active(togglebutton), config.DNS1);
+}
+
+void OnAutoDNS2Changed(GtkToggleButton* togglebutton, gpointer usr_data)
+{
+	IPControl_Enable((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_DNS2"), !gtk_toggle_button_get_active(togglebutton), config.DNS2);
+}
+
+void OnInterceptChanged(GtkToggleButton* togglebutton, gpointer usr_data)
+{
+	if (gtk_toggle_button_get_active(togglebutton))
+	{
+		gtk_widget_set_sensitive((GtkWidget*)gtk_builder_get_object(builder, "IDC_IPADDRESS_IP"), true);
+		IPControl_SetValue((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_IP"), config.PS2IP);
+
+		gtk_widget_set_sensitive((GtkWidget*)gtk_builder_get_object(builder, "IDC_CHECK_SUBNET"), true);
+		gtk_widget_set_sensitive((GtkWidget*)gtk_builder_get_object(builder, "IDC_CHECK_GATEWAY"), true);
+		gtk_widget_set_sensitive((GtkWidget*)gtk_builder_get_object(builder, "IDC_CHECK_DNS1"), true);
+		gtk_widget_set_sensitive((GtkWidget*)gtk_builder_get_object(builder, "IDC_CHECK_DNS2"), true);
+
+		gtk_toggle_button_set_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_SUBNET"), config.AutoMask);
+		gtk_toggle_button_set_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_GATEWAY"), config.AutoGateway);
+		gtk_toggle_button_set_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_DNS1"), config.AutoDNS1);
+		gtk_toggle_button_set_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_DNS2"), config.AutoDNS2);
+
+		OnAutoMaskChanged((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_SUBNET"), nullptr);
+		OnAutoGatewayChanged((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_GATEWAY"), nullptr);
+		OnAutoDNS1Changed((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_DNS1"), nullptr);
+		OnAutoDNS2Changed((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_DNS2"), nullptr);
+	}
+	else
+	{
+		gtk_widget_set_sensitive((GtkWidget*)gtk_builder_get_object(builder, "IDC_IPADDRESS_IP"), false);
+		IPControl_SetValue((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_IP"), {0});
+
+		gtk_widget_set_sensitive((GtkWidget*)gtk_builder_get_object(builder, "IDC_CHECK_SUBNET"), false);
+		gtk_widget_set_sensitive((GtkWidget*)gtk_builder_get_object(builder, "IDC_CHECK_GATEWAY"), false);
+		gtk_widget_set_sensitive((GtkWidget*)gtk_builder_get_object(builder, "IDC_CHECK_DNS1"), false);
+		gtk_widget_set_sensitive((GtkWidget*)gtk_builder_get_object(builder, "IDC_CHECK_DNS2"), false);
+
+		gtk_toggle_button_set_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_SUBNET"), true);
+		gtk_toggle_button_set_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_GATEWAY"), true);
+		gtk_toggle_button_set_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_DNS1"), true);
+		gtk_toggle_button_set_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_DNS2"), true);
+
+		IPControl_Enable((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_SUBNET"), false, config.Mask);
+		IPControl_Enable((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_GATEWAY"), false, config.Gateway);
+		IPControl_Enable((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_DNS1"), false, config.DNS1);
+		IPControl_Enable((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_DNS2"), false, config.DNS2);
+	}
+}
 
 void OnInitDialog()
 {
@@ -67,6 +164,9 @@ void OnInitDialog()
 		idx++;
 	}
 
+	gtk_toggle_button_set_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_DHCP"), config.InterceptDHCP);
+	OnInterceptChanged((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_DHCP"), nullptr);
+
 	gtk_entry_set_text((GtkEntry*)gtk_builder_get_object(builder, "IDC_HDDFILE"), config.Hdd);
 
 	//HDDSpin
@@ -90,9 +190,9 @@ void OnInitDialog()
 
 	//Checkboxes
 	gtk_toggle_button_set_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_ETHENABLED"),
-								 config.ethEnable);
+		config.ethEnable);
 	gtk_toggle_button_set_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_HDDENABLED"),
-								 config.hddEnable);
+		config.hddEnable);
 
 	initialized = 1;
 }
@@ -104,7 +204,7 @@ void OnBrowse(GtkButton* button, gpointer usr_data)
 	static const wxChar* hddFilterType = L"HDD|*.raw;*.RAW";
 
 	wxFileDialog ctrl(nullptr, _("HDD Image File"), GetSettingsFolder().ToString(), HDD_DEF,
-					  (wxString)hddFilterType + L"|" + _("All Files (*.*)") + L"|*.*", wxFD_SAVE);
+		(wxString)hddFilterType + L"|" + _("All Files (*.*)") + L"|*.*", wxFD_SAVE);
 
 	if (ctrl.ShowModal() != wxID_CANCEL)
 	{
@@ -129,13 +229,13 @@ void OnBrowse(GtkButton* button, gpointer usr_data)
 void OnSpin(GtkSpinButton* spin, gpointer usr_data)
 {
 	gtk_range_set_value((GtkRange*)gtk_builder_get_object(builder, "IDC_HDDSIZE_SLIDER"),
-						gtk_spin_button_get_value(spin));
+		gtk_spin_button_get_value(spin));
 }
 
 void OnSlide(GtkRange* range, gpointer usr_data)
 {
 	gtk_spin_button_set_value((GtkSpinButton*)gtk_builder_get_object(builder, "IDC_HDDSIZE_SPIN"),
-							  gtk_range_get_value(range));
+		gtk_range_get_value(range));
 }
 
 void OnOk()
@@ -145,6 +245,28 @@ void OnOk()
 	{
 		strcpy(config.Eth, adapters[ethIndex].guid.c_str());
 		config.EthApi = adapters[ethIndex].type;
+	}
+
+	config.InterceptDHCP = gtk_toggle_button_get_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_DHCP"));
+	if (config.InterceptDHCP)
+	{
+		config.PS2IP = IPControl_GetValue((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_IP"));
+
+		config.AutoMask = gtk_toggle_button_get_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_SUBNET"));
+		if (!config.AutoMask)
+			config.Mask = IPControl_GetValue((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_SUBNET"));
+
+		config.AutoGateway = gtk_toggle_button_get_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_GATEWAY"));
+		if (!config.AutoGateway)
+			config.Gateway = IPControl_GetValue((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_GATEWAY"));
+
+		config.AutoDNS1 = gtk_toggle_button_get_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_DNS1"));
+		if (!config.AutoDNS1)
+			config.DNS1 = IPControl_GetValue((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_DNS1"));
+
+		config.AutoDNS2 = gtk_toggle_button_get_active((GtkToggleButton*)gtk_builder_get_object(builder, "IDC_CHECK_DNS2"));
+		if (!config.AutoDNS2)
+			config.DNS2 = IPControl_GetValue((GtkEntry*)gtk_builder_get_object(builder, "IDC_IPADDRESS_DNS2"));
 	}
 
 	strcpy(config.Hdd, gtk_entry_get_text((GtkEntry*)gtk_builder_get_object(builder, "IDC_HDDFILE")));
@@ -157,8 +279,7 @@ void OnOk()
 
 	if (hddPath.is_relative())
 	{
-		//GHC uses UTF8 on all platforms
-		ghc::filesystem::path path(GetSettingsFolder().ToUTF8().data());
+		ghc::filesystem::path path(GetSettingsFolder().ToString().wx_str());
 		hddPath = path / hddPath;
 	}
 
@@ -184,9 +305,14 @@ void DEV9configure()
 	{
 		builder = gtk_builder_new();
 		gtk_builder_add_callback_symbols(builder,
-										 "OnBrowse", G_CALLBACK(&OnBrowse),
-										 "OnSpin", G_CALLBACK(&OnSpin),
-										 "OnSlide", G_CALLBACK(&OnSlide), nullptr);
+			"OnInterceptChanged", G_CALLBACK(&OnInterceptChanged),
+			"OnAutoMaskChanged", G_CALLBACK(&OnAutoMaskChanged),
+			"OnAutoGatewayChanged", G_CALLBACK(&OnAutoGatewayChanged),
+			"OnAutoDNS1Changed", G_CALLBACK(&OnAutoDNS1Changed),
+			"OnAutoDNS2Changed", G_CALLBACK(&OnAutoDNS2Changed),
+			"OnBrowse", G_CALLBACK(&OnBrowse),
+			"OnSpin", G_CALLBACK(&OnSpin),
+			"OnSlide", G_CALLBACK(&OnSlide), nullptr);
 		if (!gtk_builder_add_from_resource(builder, "/net/pcsx2/dev9/DEV9/Linux/dev9.ui", &error))
 		{
 			g_warning("Could not build config ui: %s", error->message);

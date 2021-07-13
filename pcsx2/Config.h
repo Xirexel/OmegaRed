@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2010  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -23,25 +23,11 @@
 
 class IniInterface;
 
-enum PluginsEnum_t
-{
-	PluginId_GS = 0,
-	PluginId_Count,
-
-	// Memorycard plugin support is preliminary, and is only hacked/hardcoded in at this
-	// time.  So it's placed afer PluginId_Count so that it doesn't show up in the conf
-	// screens or other plugin tables.
-
-	PluginId_Mcd,
-	PluginId_AllocCount // Extra value for correct array allocation
-};
-
 enum GamefixId
 {
 	GamefixId_FIRST = 0,
 
 	Fix_VuAddSub = GamefixId_FIRST,
-	Fix_FpuCompare,
 	Fix_FpuMultiply,
 	Fix_FpuNegDiv,
 	Fix_XGKick,
@@ -54,8 +40,7 @@ enum GamefixId
 	Fix_VIF1Stall,
 	Fix_GIFFIFO,
 	Fix_GoemonTlbMiss,
-	Fix_ScarfaceIbit,
-	Fix_CrashTagTeamIbit,
+	Fix_Ibit,
 	Fix_VU0Kickstart,
 
 	GamefixId_COUNT
@@ -191,8 +176,6 @@ struct TraceLogFilters
 //  Pcsx2Config class
 // --------------------------------------------------------------------------------------
 // This is intended to be a public class library between the core emulator and GUI only.
-// It is *not* meant to be shared data between core emulation and plugins, due to issues
-// with version incompatibilities if the structure formats are changed.
 //
 // When GUI code performs modifications of this class, it must be done with strict thread
 // safety, since the emu runs on a separate thread.  Additionally many components of the
@@ -237,10 +220,6 @@ struct Pcsx2Config
 				EnableIOP		:1,
 				EnableVU0		:1,
 				EnableVU1		:1;
-
-			bool
-				UseMicroVU0		:1,
-				UseMicroVU1		:1;
 
 			bool
 				vuOverflow		:1,
@@ -358,7 +337,6 @@ struct Pcsx2Config
         BITFIELD32()
         bool
             VuAddSubHack : 1,           // Tri-ace games, they use an encryption algorithm that requires VU ADDI opcode to be bit-accurate.
-            FpuCompareHack : 1,         // Digimon Rumble Arena 2, fixes spinning/hanging on intro-menu.
             FpuMulHack : 1,             // Tales of Destiny hangs.
             FpuNegDivHack : 1,          // Gundam games messed up camera-view.
             XgKickHack : 1,             // Erementar Gerad, adds more delay to VU XGkick instructions. Corrects the color of some graphics, but breaks Tri-ace games and others.
@@ -371,8 +349,7 @@ struct Pcsx2Config
             VIF1StallHack : 1,          // Like above, processes FIFO data before the stall is allowed (to make sure data goes over).
             GIFFIFOHack : 1,            // Enabled the GIF FIFO (more correct but slower)
             GoemonTlbHack : 1,          // Gomeon tlb miss hack. The game need to access unmapped virtual address. Instead to handle it as exception, tlb are preloaded at startup
-            ScarfaceIbit : 1,           // Scarface I bit hack. Needed to stop constant VU recompilation
-            CrashTagTeamRacingIbit : 1, // Crash Tag Team Racing I bit hack. Needed to stop constant VU recompilation
+            IbitHack : 1,               // I bit hack. Needed to stop constant VU recompilation in some games
             VU0KickstartHack : 1;       // Speed up VU0 at start of program to avoid some VU1 sync issues
 		BITFIELD_END
 
@@ -542,17 +519,14 @@ TraceLogFilters&				SetTraceConfig();
 
 // ------------ CPU / Recompiler Options ---------------
 
-#define THREAD_VU1					(EmuConfig.Cpu.Recompiler.UseMicroVU1 && EmuConfig.Speedhacks.vuThread)
+#define THREAD_VU1					(EmuConfig.Cpu.Recompiler.EnableVU1 && EmuConfig.Speedhacks.vuThread)
 #define INSTANT_VU1					(EmuConfig.Speedhacks.vu1Instant)
-#define CHECK_MICROVU0				(EmuConfig.Cpu.Recompiler.UseMicroVU0)
-#define CHECK_MICROVU1				(EmuConfig.Cpu.Recompiler.UseMicroVU1)
 #define CHECK_EEREC					(EmuConfig.Cpu.Recompiler.EnableEE && GetCpuProviders().IsRecAvailable_EE())
 #define CHECK_CACHE					(EmuConfig.Cpu.Recompiler.EnableEECache)
 #define CHECK_IOPREC				(EmuConfig.Cpu.Recompiler.EnableIOP && GetCpuProviders().IsRecAvailable_IOP())
 
 //------------ SPECIAL GAME FIXES!!! ---------------
 #define CHECK_VUADDSUBHACK			(EmuConfig.Gamefixes.VuAddSubHack)	 // Special Fix for Tri-ace games, they use an encryption algorithm that requires VU addi opcode to be bit-accurate.
-#define CHECK_FPUCOMPAREHACK		(EmuConfig.Gamefixes.FpuCompareHack) // Special Fix for Digimon Rumble Arena 2, fixes spinning/hanging on intro-menu.
 #define CHECK_FPUMULHACK			(EmuConfig.Gamefixes.FpuMulHack)	 // Special Fix for Tales of Destiny hangs.
 #define CHECK_FPUNEGDIVHACK			(EmuConfig.Gamefixes.FpuNegDivHack)	 // Special Fix for Gundam games messed up camera-view.
 #define CHECK_XGKICKHACK			(EmuConfig.Gamefixes.XgKickHack)	 // Special Fix for Erementar Gerad, adds more delay to VU XGkick instructions. Corrects the color of some graphics.

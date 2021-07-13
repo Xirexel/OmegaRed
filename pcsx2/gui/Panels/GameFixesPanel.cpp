@@ -41,10 +41,6 @@ Panels::GameFixesPanel::GameFixesPanel( wxWindow* parent )
 			_("Games that need this hack to boot:\n * Star Ocean 3\n * Radiata Stories\n * Valkyrie Profile 2")
 		},
 		{
-			_("FPU Compare Hack - For Digimon Rumble Arena 2."),
-			wxEmptyString
-		},
-		{
 			_("FPU Multiply Hack - For Tales of Destiny."),
 			wxEmptyString
 		},
@@ -97,11 +93,7 @@ Panels::GameFixesPanel::GameFixesPanel( wxWindow* parent )
 			wxEmptyString
 		},
 		{
-			_("VU I bit Hack avoid constant recompilation (Scarface The World Is Yours)"),
-			wxEmptyString
-		},
-		{
-			_("VU I bit Hack avoid constant recompilation (Crash Tag Team Racing)"),
+			_("VU I bit Hack avoid constant recompilation in some games (Scarface The World Is Yours, Crash Tag Team Racing)"),
 			wxEmptyString
 		},
 		{

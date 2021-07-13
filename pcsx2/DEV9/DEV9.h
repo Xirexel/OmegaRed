@@ -25,9 +25,8 @@
 //#define WINVER 0x0600
 //#define _WIN32_WINNT 0x0500
 
-#include "PS2Edefs.h"
-#include "PS2Eext.h"
 #include "net.h"
+#include "PacketReader/IP/IP_Address.h"
 #include "ATA/ATA.h"
 
 #ifdef _WIN32
@@ -53,13 +52,23 @@ bool rx_fifo_can_rx();
 #define HDD_DEF "DEV9hdd.raw"
 #endif
 
-#define HDD_MIN_GB 8
+#define HDD_MIN_GB 40
 #define HDD_MAX_GB 120
 
-typedef struct
+struct Config
 {
 	char Eth[256];
 	NetApi EthApi;
+	bool InterceptDHCP;
+	PacketReader::IP::IP_Address PS2IP;
+	PacketReader::IP::IP_Address Mask;
+	PacketReader::IP::IP_Address Gateway;
+	PacketReader::IP::IP_Address DNS1;
+	PacketReader::IP::IP_Address DNS2;
+	int AutoMask;
+	int AutoGateway;
+	int AutoDNS1;
+	int AutoDNS2;
 #ifdef _WIN32
 	wchar_t Hdd[256];
 #else
@@ -69,7 +78,7 @@ typedef struct
 
 	int hddEnable;
 	int ethEnable;
-} Config;
+};
 
 EXTERN Config config;
 

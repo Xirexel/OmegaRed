@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2010  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -120,9 +120,6 @@ Pcsx2Config::RecompilerOptions::RecompilerOptions()
 	EnableVU0	= true;
 	EnableVU1	= true;
 
-	UseMicroVU0	= true;
-	UseMicroVU1	= true;
-
 	// vu and fpu clamping default to standard overflow.
 	vuOverflow	= true;
 	//vuExtraOverflow = false;
@@ -176,9 +173,6 @@ void Pcsx2Config::RecompilerOptions::LoadSave( IniInterface& ini )
 	IniBitBool( EnableEECache );
 	IniBitBool( EnableVU0 );
 	IniBitBool( EnableVU1 );
-
-	IniBitBool( UseMicroVU0 );
-	IniBitBool( UseMicroVU1 );
 
 	IniBitBool( vuOverflow );
 	IniBitBool( vuExtraOverflow );
@@ -279,7 +273,6 @@ int Pcsx2Config::GSOptions::GetVsync() const
 const wxChar *const tbl_GamefixNames[] =
 {
 	L"VuAddSub",
-	L"FpuCompare",
 	L"FpuMul",
 	L"FpuNegDiv",
 	L"XGKick",
@@ -292,8 +285,7 @@ const wxChar *const tbl_GamefixNames[] =
 	L"VIF1Stall",
 	L"GIFFIFO",
 	L"GoemonTlb",
-	L"ScarfaceIbit",
-	L"CrashTagTeamRacingIbit",
+	L"Ibit",
 	L"VU0Kickstart"
 };
 
@@ -342,7 +334,6 @@ void Pcsx2Config::GamefixOptions::Set( GamefixId id, bool enabled )
 	switch(id)
 	{
 		case Fix_VuAddSub:		VuAddSubHack		= enabled;	break;
-		case Fix_FpuCompare:	FpuCompareHack		= enabled;	break;
 		case Fix_FpuMultiply:	FpuMulHack			= enabled;	break;
 		case Fix_FpuNegDiv:		FpuNegDivHack		= enabled;	break;
 		case Fix_XGKick:		XgKickHack			= enabled;	break;
@@ -355,8 +346,7 @@ void Pcsx2Config::GamefixOptions::Set( GamefixId id, bool enabled )
 		case Fix_VIF1Stall:		VIF1StallHack		= enabled;  break;
 		case Fix_GIFFIFO:		GIFFIFOHack			= enabled;  break;
 		case Fix_GoemonTlbMiss: GoemonTlbHack		= enabled;  break;
-		case Fix_ScarfaceIbit:  ScarfaceIbit        = enabled;  break;
-		case Fix_CrashTagTeamIbit: CrashTagTeamRacingIbit = enabled; break;
+		case Fix_Ibit:			IbitHack			= enabled;  break;
 		case Fix_VU0Kickstart:	VU0KickstartHack	= enabled; break;
 		jNO_DEFAULT;
 	}
@@ -368,7 +358,6 @@ bool Pcsx2Config::GamefixOptions::Get( GamefixId id ) const
 	switch(id)
 	{
 		case Fix_VuAddSub:		return VuAddSubHack;
-		case Fix_FpuCompare:	return FpuCompareHack;
 		case Fix_FpuMultiply:	return FpuMulHack;
 		case Fix_FpuNegDiv:		return FpuNegDivHack;
 		case Fix_XGKick:		return XgKickHack;
@@ -381,8 +370,7 @@ bool Pcsx2Config::GamefixOptions::Get( GamefixId id ) const
 		case Fix_VIF1Stall:		return VIF1StallHack;
 		case Fix_GIFFIFO:		return GIFFIFOHack;
 		case Fix_GoemonTlbMiss: return GoemonTlbHack;
-		case Fix_ScarfaceIbit:  return ScarfaceIbit;
-		case Fix_CrashTagTeamIbit: return CrashTagTeamRacingIbit;
+		case Fix_Ibit:			return IbitHack;
 		case Fix_VU0Kickstart:	return VU0KickstartHack;
 		jNO_DEFAULT;
 	}
@@ -394,7 +382,6 @@ void Pcsx2Config::GamefixOptions::LoadSave( IniInterface& ini )
 	ScopedIniGroup path( ini, L"Gamefixes" );
 
 	IniBitBool( VuAddSubHack );
-	IniBitBool( FpuCompareHack );
 	IniBitBool( FpuMulHack );
 	IniBitBool( FpuNegDivHack );
 	IniBitBool( XgKickHack );
@@ -407,8 +394,7 @@ void Pcsx2Config::GamefixOptions::LoadSave( IniInterface& ini )
 	IniBitBool( VIF1StallHack );
 	IniBitBool( GIFFIFOHack );
 	IniBitBool( GoemonTlbHack );
-	IniBitBool( ScarfaceIbit );
-	IniBitBool( CrashTagTeamRacingIbit );
+	IniBitBool( IbitHack );
 	IniBitBool( VU0KickstartHack );
 }
 
